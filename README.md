@@ -204,3 +204,4 @@ MIT License - Free for educational use and open source development.
 ---
 
 **Educational Platform by JED-2048** | *Learn AI through practical game bot development*
+# JED-2048
