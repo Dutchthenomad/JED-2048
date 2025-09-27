@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Environments
+venv/
+.venv/
+
+# OS/Editor
+.DS_Store
+.vscode/
+
+# Project artifacts
+logs/
+reports/
+validation_data/*
+!validation_data/.keep
+
+# Playwright
+playwright-report/
+test-results/
+
