@@ -28,14 +28,14 @@ class QLearning2048Algorithm(BaseAlgorithm):
 
     def __init__(self, **kwargs):
         """Initialize Q-learning algorithm"""
-        super().__init__(**kwargs)
-
-        # Q-learning parameters
+        # Q-learning parameters need to exist before BaseAlgorithm pulls metadata
         self.learning_rate = kwargs.get('learning_rate', 0.1)
         self.discount_factor = kwargs.get('discount_factor', 0.95)
         self.epsilon = kwargs.get('epsilon', 0.1)  # Exploration rate
         self.epsilon_decay = kwargs.get('epsilon_decay', 0.995)
         self.min_epsilon = kwargs.get('min_epsilon', 0.01)
+
+        super().__init__(**kwargs)
 
         # Q-table (state -> action values)
         self.q_table = defaultdict(lambda: np.zeros(4))

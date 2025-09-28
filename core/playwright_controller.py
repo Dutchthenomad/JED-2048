@@ -98,9 +98,9 @@ class PlaywrightController:
             # Set up page-level ad blocking for all browsers
             if self.block_ads:
                 # Block common ad domains and tracking
-                def block_ads(route):
+                def block_ads(route, request):
                     """Block ads and tracking requests"""
-                    url = route.request.url
+                    url = request.url
 
                     # Allow the main game domain and essential resources
                     allowed_domains = [

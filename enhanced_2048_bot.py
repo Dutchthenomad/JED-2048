@@ -428,27 +428,37 @@ class Enhanced2048Bot:
         self.cleanup()
 
 if __name__ == "__main__":
-    # Demo the enhanced bot with algorithm selection
+    import argparse
+
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Enhanced 2048 Bot with Algorithm Selection")
+    parser.add_argument("--algorithm", type=str, help="Algorithm ID to use")
+    parser.add_argument("--max-moves", type=int, default=20, help="Maximum moves to play")
+    parser.add_argument("--headless", action="store_true", help="Run in headless mode")
+    args = parser.parse_args()
+
     print("🤖 ENHANCED 2048 BOT - ALGORITHM SELECTION DEMO")
     print("=" * 60)
 
     try:
         # Initialize bot
-        bot = Enhanced2048Bot(headless=False, debug=True)
+        bot = Enhanced2048Bot(headless=args.headless, debug=True, algorithm_id=args.algorithm)
 
         # Show available algorithms
         algorithms = bot.list_available_algorithms()
 
-        if algorithms:
-            # Try to set a specific algorithm
-            print("🧠 Testing algorithm selection...")
-            first_algo = algorithms[0]
-            bot.set_algorithm(first_algo['id'])
+        # If no algorithm specified, use the Enhanced Heuristic
+        if not args.algorithm:
+            enhanced_algo = next((a for a in algorithms if "Enhanced Heuristic" in a['name']), algorithms[-1])
+            print(f"🧠 No algorithm specified, using: {enhanced_algo['name']}")
+            bot.set_algorithm(enhanced_algo['id'])
+        else:
+            print(f"🧠 Using specified algorithm: {args.algorithm}")
 
-            # Connect and play a short game
-            if bot.connect_to_game():
-                results = bot.play_autonomous_game(max_moves=20)
-                print(f"\n🎉 Demo completed with {results['algorithm_name']}!")
+        # Connect and play a game
+        if bot.connect_to_game():
+            results = bot.play_autonomous_game(max_moves=args.max_moves)
+            print(f"\n🎉 Demo completed with {bot.current_algorithm.name if hasattr(bot.current_algorithm, 'name') else 'Unknown'}!")
 
         bot.cleanup()
 

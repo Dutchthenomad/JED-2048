@@ -8,8 +8,8 @@ Trained on actual user-labeled screenshots - NO SIMULATIONS.
 import cv2
 import numpy as np
 from typing import List, Tuple, Optional, Dict, Any
-import json
 from pathlib import Path
+import time
 
 class ImprovedBoardVision:
     """Enhanced vision system trained on real data"""
@@ -17,6 +17,8 @@ class ImprovedBoardVision:
     def __init__(self):
         self.color_profiles = self._load_color_profiles()
         self.debug_mode = False
+        self.match_threshold = 220.0
+        self.empty_threshold = 260.0
 
     def _load_color_profiles(self) -> Dict[int, Dict[str, float]]:
         """
@@ -24,67 +26,41 @@ class ImprovedBoardVision:
         Based on actual analysis of user's labeled screenshot
         """
 
-        # Real color profiles extracted from actual 2048 tiles
-        # Updated with expanded tile values from training_data_20250917_225012.json
-        # Includes tiles 8, 64, and 128 for advanced game states
-        profiles = {
-            0: {  # Tile value 0 (2048game.com)
-                'mean_rgb': [207.314256, 181.641872, 163.28337600000003],
-                'mean_gray': 187.17648,
-                'uniformity': 12.25139538982183,
-                'hsv_hue': 14.098816000000001,
-                'hsv_sat': 50.989856
-            },
-            2: {  # Tile value 2 (2048game.com)
-                'mean_rgb': [219.28970971428575, 208.31124114285714, 197.5611062857143],
-                'mean_gray': 210.5656045714286,
-                'uniformity': 31.3951755410835,
-                'hsv_hue': 14.783456,
-                'hsv_sat': 25.969133714285714
-            },
-            4: {  # Tile value 4 (2048game.com)
-                'mean_rgb': [218.213696, 205.15783314285719, 184.77330285714285],
-                'mean_gray': 206.72663771428572,
-                'uniformity': 29.696277888637724,
-                'hsv_hue': 17.529709714285712,
-                'hsv_sat': 39.14955885714286
-            },
-            8: {  # Tile value 8 (2048game.com)
-                'mean_rgb': [228.458592, 180.866432, 139.196576],
-                'mean_gray': 190.36918400000002,
-                'uniformity': 16.16118032207846,
-                'hsv_hue': 14.347135999999999,
-                'hsv_sat': 95.933344
-            },
-            16: {  # Tile value 16 (2048game.com)
-                'mean_rgb': [230.28192, 164.67206399999998, 128.46176],
-                'mean_gray': 180.191552,
-                'uniformity': 20.957065264267502,
-                'hsv_hue': 11.825184,
-                'hsv_sat': 108.376416
-            },
-            32: {  # Tile value 32 (2048game.com)
-                'mean_rgb': [230.46848, 148.095744, 125.627328],
-                'mean_gray': 170.101312,
-                'uniformity': 24.684096416086533,
-                'hsv_hue': 9.030528,
-                'hsv_sat': 111.367168
-            },
-            64: {  # Tile value 64 (2048game.com)
-                'mean_rgb': [230.500416, 130.368896, 104.362176],
-                'mean_gray': 157.1008,
-                'uniformity': 33.86443395894873,
-                'hsv_hue': 9.133184,
-                'hsv_sat': 133.24
-            },
-            128: {  # Tile value 128 (2048game.com)
-                'mean_rgb': [226.768768, 203.095168, 137.001472],
-                'mean_gray': 202.400128,
-                'uniformity': 17.471916482848012,
-                'hsv_hue': 21.176576,
-                'hsv_sat': 98.86176
-            },
+        def hex_to_rgb(hex_color: str) -> List[float]:
+            hex_color = hex_color.lstrip('#')
+            return [float(int(hex_color[i:i+2], 16)) for i in (0, 2, 4)]
+
+        # Canonical 2048 tile colors (taken from 2048game.com)
+        canonical_hex = {
+            0: "#cdc1b4",
+            2: "#eee4da",
+            4: "#ede0c8",
+            8: "#f2b179",
+            16: "#f59563",
+            32: "#f67c5f",
+            64: "#f65e3b",
+            128: "#edcf72",
+            256: "#edcc61",
+            512: "#edc850",
+            1024: "#edc53f",
+            2048: "#edc22e",
+            4096: "#edc22e"
         }
+
+        profiles: Dict[int, Dict[str, float]] = {}
+
+        for value, hex_color in canonical_hex.items():
+            rgb = hex_to_rgb(hex_color)
+            gray = float(sum(rgb) / 3.0)
+            hsv = cv2.cvtColor(np.uint8([[rgb]]), cv2.COLOR_RGB2HSV)[0][0]
+
+            profiles[value] = {
+                'mean_rgb': rgb,
+                'mean_gray': gray,
+                'uniformity': 18.0 if value > 0 else 25.0,
+                'hsv_hue': float(hsv[0]),
+                'hsv_sat': float(hsv[1])
+            }
 
         return profiles
 
@@ -192,13 +168,13 @@ class ImprovedBoardVision:
 
         return grid
 
-    def recognize_tile_value(self, tile_image: np.ndarray) -> int:
+    def recognize_tile_value(self, tile_image: np.ndarray) -> Tuple[int, float]:
         """
         Recognize tile value using trained color profiles
         Uses real color data extracted from user's labeled screenshot
         """
         if tile_image is None or tile_image.size == 0:
-            return 0
+            return 0, float('inf')
 
         # Extract features from real tile image
         features = self._extract_tile_features(tile_image)
@@ -218,7 +194,11 @@ class ImprovedBoardVision:
         if best_score > 100:  # Tune this based on real performance
             return 0  # Default to empty if confidence is too low
 
-        return best_match
+        if best_score > self.empty_threshold:
+            # Confidence too low – treat as empty to avoid bad data
+            return 0, best_score
+
+        return best_match, best_score
 
     def _extract_tile_features(self, tile_image: np.ndarray) -> Dict[str, float]:
         """Extract color features from tile image"""
@@ -291,6 +271,7 @@ class ImprovedBoardVision:
         }
 
         try:
+            start_time = time.perf_counter()
             # Step 1: Detect board region
             board_region = self.detect_board_region(image)
             if board_region is None:
@@ -316,33 +297,51 @@ class ImprovedBoardVision:
 
             # Step 4: Recognize each tile using improved method
             recognition_stats = {'successful': 0, 'total': 16}
+            tile_positions = []
+            tile_mapping: Dict[Tuple[int, int], int] = {}
+            confidence_mapping: Dict[Tuple[int, int], float] = {}
 
             for row in range(4):
                 for col in range(4):
                     tile_region = grid[row][col]
                     x, y, w, h = tile_region
+                    tile_positions.append(tile_region)
 
                     # Extract tile with bounds checking
                     if (x >= 0 and y >= 0 and x + w <= board_image.shape[1] and y + h <= board_image.shape[0]):
                         tile_image = board_image[y:y+h, x:x+w]
 
                         if tile_image.size > 0:
-                            tile_value = self.recognize_tile_value(tile_image)
+                            tile_value, match_score = self.recognize_tile_value(tile_image)
                             results['board_state'][row][col] = tile_value
+                            tile_mapping[(row, col)] = tile_value
 
-                            # Enhanced confidence scoring
-                            if tile_value > 0:
-                                results['confidence_scores'][row][col] = 0.85  # Higher confidence with training
+                            confidence = max(0.0, min(1.0, 1.0 - (match_score / 400.0)))
+                            results['confidence_scores'][row][col] = confidence
+                            confidence_mapping[(row, col)] = confidence
+
+                            threshold = self.match_threshold if tile_value > 0 else self.empty_threshold
+                            if match_score <= threshold:
+                                recognition_stats['successful'] += 1
                             else:
-                                results['confidence_scores'][row][col] = 0.90
-
-                            recognition_stats['successful'] += 1
+                                low_conf = results['debug_info'].setdefault('low_confidence_tiles', [])
+                                low_conf.append({
+                                    'row': row,
+                                    'col': col,
+                                    'score': float(match_score),
+                                    'predicted': tile_value
+                                })
 
             # Calculate success metrics
             recognition_rate = recognition_stats['successful'] / recognition_stats['total']
             results['debug_info']['recognition_rate'] = recognition_rate
 
             results['success'] = recognition_rate > 0.8  # Must recognize most tiles
+
+            results['tile_positions'] = tile_positions
+            results['tile_mapping'] = tile_mapping
+            results['confidence_map'] = confidence_mapping
+            results['processing_time'] = time.perf_counter() - start_time
 
             # Save debug images if requested
             if save_debug:

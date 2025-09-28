@@ -35,7 +35,7 @@ class GameSession:
         self.move_log = []
         self.completed = False
 
-    def add_move(self, move: Move, board_before: List[List[int]], board_after: List[List[int]], score: int):
+    def add_move(self, move: Move, board_before: List[List[int]], board_after: Optional[List[List[int]]], score: int):
         """Record a move"""
         self.moves += 1
         self.move_log.append({
@@ -47,8 +47,16 @@ class GameSession:
             'timestamp': datetime.now()
         })
 
-        if board_after and all(len(row) > 0 for row in board_after):
-            self.highest_tile = max(max(row) for row in board_after)
+        # Track known board states for later analysis/GUI updates
+        if board_after:
+            self.board_states.append([row[:] for row in board_after])
+        else:
+            self.board_states.append([row[:] for row in board_before])
+
+        # Update highest achieved tile using the most reliable board snapshot
+        candidate_boards = [state for state in (board_after, board_before) if state]
+        for state in candidate_boards:
+            self.highest_tile = max(self.highest_tile, max(max(row) for row in state))
 
     def finish_game(self, final_score: int):
         """Mark game as finished"""
@@ -238,8 +246,8 @@ class GameBot:
                 game_state = self.browser.check_game_state()
                 score = game_state.get('score', 0)
 
-                # We'll get the new board state on next iteration for efficiency
-                self.current_session.add_move(best_move, current_board, None, score)
+                resulting_board = analysis['move_analysis'][best_move].get('resulting_board')
+                self.current_session.add_move(best_move, current_board, resulting_board, score)
 
             if self.debug_mode:
                 self.logger.debug(f"Move {self.current_session.moves if self.current_session else '?'}: "
