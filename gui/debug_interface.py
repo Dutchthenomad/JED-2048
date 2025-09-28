@@ -20,12 +20,8 @@ if not hasattr(pygame, "DIRECTION_LTR"):
     pygame.DIRECTION_RTL = 1
 
 if not hasattr(pygame, "FRect"):
-    try:
-        pygame.FRect = pygame.Rect
-    except AttributeError:
-        # Fallback for pygame-ce compatibility
-        import pygame_ce
-        pygame.FRect = getattr(pygame_ce, 'FRect', pygame_ce.Rect)
+    # For older pygame versions, use Rect as FRect
+    pygame.FRect = pygame.Rect
 
 import pygame_gui
 
@@ -622,7 +618,7 @@ class DebugInterface:
         if pending_status and self.status_label:
             text, object_id = pending_status
             self.status_label.set_text(text)
-            self.status_label.set_object_id(object_id, 'label')
+            # Note: set_object_id not available in pygame_gui 0.6.9, skipping style update
 
         if metrics:
             self._update_metrics_ui(metrics)
@@ -671,12 +667,33 @@ class DebugInterface:
         if frame is None:
             return
 
-        if self._screenshot_surface is None or self._screenshot_surface.get_size() != (frame.shape[1], frame.shape[0]):
-            surface = pygame.image.frombuffer(frame.tobytes(), (frame.shape[1], frame.shape[0]), 'RGB')
-            self._screenshot_surface = surface
-        scaled_surface = pygame.transform.smoothscale(self._screenshot_surface, self.game_area_rect.size)
-        self.screen.blit(scaled_surface, self.game_area_rect)
-        self._render_overlays(cv_overlay, frame.shape[1], frame.shape[0])
+        # ROBUSTNESS FIX: Validate frame format and dimensions
+        if len(frame.shape) != 3 or frame.shape[2] != 3:
+            print(f"⚠️ Invalid frame format: {frame.shape}")
+            return
+
+        # Validate dimensions are reasonable
+        if frame.shape[0] <= 0 or frame.shape[1] <= 0 or frame.shape[0] > 5000 or frame.shape[1] > 5000:
+            print(f"⚠️ Invalid frame dimensions: {frame.shape}")
+            return
+
+        try:
+            if self._screenshot_surface is None or self._screenshot_surface.get_size() != (frame.shape[1], frame.shape[0]):
+                # Use the proven working method from our tests
+                surface = pygame.surfarray.make_surface(frame.swapaxes(0, 1))
+                self._screenshot_surface = surface
+
+            scaled_surface = pygame.transform.smoothscale(self._screenshot_surface, self.game_area_rect.size)
+            self.screen.blit(scaled_surface, self.game_area_rect)
+            self._render_overlays(cv_overlay, frame.shape[1], frame.shape[0])
+
+        except Exception as e:
+            print(f"❌ Screenshot display error: {e}")
+            # Fall back to placeholder display
+            pygame.draw.rect(self.screen, (50, 50, 50), self.game_area_rect)
+            font = pygame.font.Font(None, 24)
+            text = font.render("Screenshot Error", True, (255, 255, 255))
+            self.screen.blit(text, (self.game_area_rect.x + 10, self.game_area_rect.y + 10))
 
     def _render_overlays(self, overlay: Dict[str, Any], width: int, height: int) -> None:
         if self.screen is None:

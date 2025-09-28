@@ -19,6 +19,7 @@ sys.path.append(str(Path(__file__).parent))
 from enhanced_2048_bot import Enhanced2048Bot
 from gui import DebugInterface, GUIConfig
 from gui.bot_controls import BotState
+from core.screenshot_manager import screenshot_manager
 
 class GUIEnhanced2048Bot(Enhanced2048Bot):
     """
@@ -56,6 +57,12 @@ class GUIEnhanced2048Bot(Enhanced2048Bot):
         self.last_cv_data = None
         self.performance_start_time = time.time()
 
+        # Initialize screenshot session
+        if algorithm_id:
+            screenshot_manager.start_session(algorithm_id)
+        else:
+            screenshot_manager.start_session("Enhanced Heuristic")
+
         if self.gui_enabled:
             self._initialize_gui()
 
@@ -92,8 +99,27 @@ class GUIEnhanced2048Bot(Enhanced2048Bot):
 
         screenshot_rgb = cv2.cvtColor(screenshot_bgr, cv2.COLOR_BGR2RGB)
 
-        if self.gui_enabled and self.debug_gui:
-            self.debug_gui.update_screenshot(screenshot_rgb)
+        # Save to organized screenshot system
+        if filename:
+            # Extract move number and type from filename
+            import re
+            match = re.search(r'bot_move_(\d+)_(\w+)', filename)
+            if match:
+                move_num = int(match.group(1))
+                screenshot_type = match.group(2)
+                organized_path = screenshot_manager.save_screenshot_file(filename, move_num, screenshot_type)
+
+                # CRITICAL FIX: Direct memory-to-GUI update (avoid file I/O bottleneck)
+                if self.gui_enabled and self.debug_gui:
+                    self.debug_gui.update_screenshot(screenshot_rgb)
+            else:
+                # Fallback to direct GUI update
+                if self.gui_enabled and self.debug_gui:
+                    self.debug_gui.update_screenshot(screenshot_rgb)
+        else:
+            # Direct GUI update for screenshots without filenames
+            if self.gui_enabled and self.debug_gui:
+                self.debug_gui.update_screenshot(screenshot_rgb)
 
         return screenshot_rgb
 
@@ -250,6 +276,10 @@ class GUIEnhanced2048Bot(Enhanced2048Bot):
             if self.gui_enabled and self.debug_gui:
                 self.debug_gui.stop()
                 time.sleep(0.5)  # Allow GUI to shutdown
+
+            # Cleanup screenshot session
+            screenshot_manager.cleanup_session(keep_latest=5)
+            screenshot_manager.end_session()
 
             # Call parent cleanup
             super().cleanup()

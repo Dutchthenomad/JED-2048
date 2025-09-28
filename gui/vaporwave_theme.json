@@ -287,7 +287,7 @@
     
     "#panel_title": {
         "colours": {
-            "normal_text": "#ff00ff"
+            "normal_text": "#ff00ff00"
         },
         "font": {
             "name": "Orbitron",
@@ -298,11 +298,11 @@
     
     "#game_area": {
         "colours": {
-            "normal_bg": "#110022",
+            "normal_bg": "#00000000",
             "normal_border": "#ff00ff"
         },
         "misc": {
-            "border_width": "3"
+            "border_width": "1"
         }
     },
     

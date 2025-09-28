@@ -17,6 +17,7 @@ logs/
 reports/
 validation_data/*
 !validation_data/.keep
+temp/
 
 # Playwright
 playwright-report/
